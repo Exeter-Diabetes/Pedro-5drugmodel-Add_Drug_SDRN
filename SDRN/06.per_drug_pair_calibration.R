@@ -114,32 +114,17 @@ analysis_standard <- analysis_cohort %>%
 
 analysis_standard_post_2019 <- analysis_cohort %>%
 		filter(!(drug_substance %in% c("Oral semaglutide", "Low-dose semaglutide", "Semaglutide, dose unclear", "High-dose semaglutide"))) %>%
-		separate(pasted_var, into = c("serialno", "dstartdate", "drug_class"), sep = "\\.") %>%
+		separate(pated, into = c("serialno", "dstartdate", "drug_class"), sep = "\\.") %>%
 		mutate(dstartdate = as.Date(dstartdate)) %>%
 		filter(dstartdate >= "2019-01-01") %>%
 		mutate(pated = paste(serialno, dstartdate, drug_class, sep = ".")) %>%
-		select(all_of(c(
-								"pated", "agetx", "sex", "t2dmduration", "ethnicity",
-								"drug_substance", "drug_class",
-								"imd5", "smoke",
-								"prebmi", "prehba1c", "preegfr", "pretotalcholesterol", "prehdl", "prealt",
-								"drugline", "ncurrtx", "hba1cmonth",
-								"posthba1cfinal"
-						)
-				))
+		select(all_of(colnames(analysis_standard)))
 
 analysis_oral <- analysis_cohort %>%
 		filter(drug_substance %in% c("Oral semaglutide"))
 
 analysis_injectable <- analysis_cohort %>%
 		filter(drug_substance %in% c("Low-dose semaglutide", "Semaglutide, dose unclear", "High-dose semaglutide"))
-
-n_train <- floor(0.2 * nrow(analysis_injectable))
-set.seed(123)
-
-analysis_injectable <- analysis_injectable %>%
-		mutate(split = ifelse(row_number() %in% sample(nrow(analysis_injectable), n_train), "training", "testing"))
-
 
 
 # Closed loop test #################################################
@@ -200,7 +185,7 @@ unified_analysis_standard_oral_adj <- unified_validation(
 
 ## Injectable semaglutide ----
 unified_analysis_standard_inje_adj <- unified_validation(
-		data = analysis_standard_post_2019 %>% filter(drugclass != "GLP1") %>% rbind(analysis_injectable %>% filter(split == "testing") %>% select(-split)), 
+		data = analysis_standard_post_2019 %>% filter(drugclass != "GLP1") %>% rbind(analysis_injectable), 
 		drug_var = "drugclass",
 		drugs = c("GLP1", "DPP4", "SGLT2", "SU", "TZD"),
 		prediction_vars = paste0("pred.", c("Inje", "DPP4", "SGLT2", "SU", "TZD")),
@@ -250,7 +235,7 @@ plot_standard_drugpairs <- unified_analysis_standard_adj %>%
 		labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)")
 
 
-pdf("Outputs/SDRN/06.drug_pair_standard.pdf", width = 12, height = 5)
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/06.drug_pair_standard.pdf", width = 12, height = 5)
 plot_standard_drugpairs
 dev.off()
 
@@ -258,7 +243,7 @@ dev.off()
 
 drug_names <- c(
 		"SGLT2" = "SGLT2i",
-		"GLP1"= "Oral semaglutide",
+		"GLP1"= "Oral Semaglutide",
 		"SU" = "SU",
 		"DPP4" = "DPP4i",
 		"TZD" = "TZD"
@@ -292,7 +277,7 @@ plot_oral_drugpairs <- unified_analysis_standard_oral_adj %>%
 		theme_minimal() +
 		labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)")
 
-pdf("Outputs/SDRN/06.drug_pair_oral_semaglutide.pdf", width = 6, height = 6)
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/06.drug_pair_oral_semaglutide.pdf", width = 6, height = 6)
 plot_oral_drugpairs
 dev.off()
 
@@ -301,7 +286,7 @@ dev.off()
 
 drug_names <- c(
 		"SGLT2" = "SGLT2i",
-		"GLP1"= "Injectable semaglutide",
+		"GLP1"= "Injectable Semaglutide",
 		"SU" = "SU",
 		"DPP4" = "DPP4i",
 		"TZD" = "TZD"
@@ -336,7 +321,7 @@ plot_inje_drugpairs <- unified_analysis_standard_inje_adj %>%
 		labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)")
 
 
-pdf("Outputs/SDRN/06.drug_pair_injectable_semaglutide.pdf", width = 6, height = 6)
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/06.drug_pair_injectable_semaglutide.pdf", width = 6, height = 6)
 plot_inje_drugpairs
 dev.off()
 
