@@ -26,7 +26,7 @@ analysis = cprd$analysis("pedro_mm")
 #:-- All initiations post Jan 2019
 analysis_post_2019 <- t2d_1stinstance %>%
   # Exclusions based on time - initiations after 1st Jan 2019
-  filter(dstartdate >= as.Date("2020-01-01")) %>%
+  filter(dstartdate >= as.Date("2019-01-01")) %>%
   ## Exclusions based on type of drugsubstance: 
   ### SU - non-gliclazide
   ### TZD - rosiglitazone
