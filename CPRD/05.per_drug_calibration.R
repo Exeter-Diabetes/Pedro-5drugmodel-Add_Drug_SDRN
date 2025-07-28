@@ -128,14 +128,25 @@ analysis_injectable <- analysis_post_2019 %>%
   filter(drug_substance %in% c("Low-dose semaglutide", "Semaglutide, dose unclear", "High-dose semaglutide"))
 
 n_train <- floor(0.2 * nrow(analysis_injectable))
-set.seed(123)
 
+set.seed(123)
 analysis_injectable <- analysis_injectable %>%
   mutate(split = ifelse(row_number() %in% sample(nrow(analysis_injectable), n_train), "training", "testing"))
 
 
 
 # Closed loop test #################################################
+
+## Oral Semaglutide ----
+### mice variables
+#### GLP1
+closed_loop_test_oral_semaglutide <- closedtest_continuous_function(
+  cohort = "Oral semaglutide cohort",
+  dataset = analysis_oral,
+  original_model = m1.5.final,
+  outcome_name = "posthba1cfinal",
+  p_value = 0.05
+)
 
 ## Injectable Semaglutide ----
 
@@ -150,6 +161,8 @@ closed_loop_test_injectable_semaglutide <- closedtest_continuous_function(
   p_value = 0.05
 )
 
+closed_loop_test_injectable_semaglutide_adjustment <- 7.3
+
 ## Adjustment used: https://doi.org/10.1016/j.diabres.2021.108904
 ## Difference between Fig5 Dulaglutide vs Semaglutide 0.48% (0.17,0.8)
 injectable_semaglutide_hba1c_percent <- 0.48
@@ -159,25 +172,13 @@ injectable_semaglutide_hba1c_mmol <- injectable_semaglutide_hba1c_percent * 10.9
 
 ### Make predictions ----
 analysis_standard <- analysis_standard %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_standard %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 analysis_oral <- analysis_oral %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_oral %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 analysis_injectable <- analysis_injectable %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_injectable %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 
 # Find optimal drug ----
@@ -261,12 +262,6 @@ overall_benefit_calibration_tolerance3_post_2019 <- cateval::compute_overall_ben
 )
 
 
-# Differential effects ##################################
-
-
-
-
-
 
 # Plots ----
 
@@ -284,7 +279,7 @@ drug_names <- c(
   "SU" = "SU",
   "DPP4" = "DPP4i",
   "TZD" = "TZD",
-  "Inje" = "Injectable semaglutide"
+  "Inje" = "Injectable Semaglutide"
 )
 
 plot_tol3_optimal_standard <- tolerance3_optimal_standard %>%
@@ -304,8 +299,18 @@ plot_tol3_optimal_standard_inje <- tolerance3_optimal_standard_inje %>%
   cateval::optimal_drug_comparison_plot(groups = groups)
 
 pdf("Outputs/CPRD/05.drug_combinations.pdf", width = 14, height = 6)
-plot_tol3_optimal_standard
-plot_tol3_optimal_standard_inje
+plot_tol3_optimal_standard &
+  theme(
+    plot.title = element_text(size = 18),
+    plot.subtitle = element_text(size = 14),
+    axis.text.x = element_text(size = 10)
+  )
+plot_tol3_optimal_standard_inje &
+  theme(
+    plot.title = element_text(size = 18),
+    plot.subtitle = element_text(size = 14),
+    axis.text.x = element_text(size = 10)
+  )
 dev.off()
 
 
@@ -466,9 +471,17 @@ plot_best_drug_viridis <- patchwork::wrap_plots(
   )
 
 
-pdf("Outputs/CPRD/05.optimal_therapy_rank1.pdf", width = 10, height = 4)
-plot_best_drug_github
-plot_best_drug_viridis
+pdf("Outputs/CPRD/05.optimal_therapy_rank1.pdf", width = 10, height = 3.5)
+plot_best_drug_github &
+  theme(
+    axis.text.y = element_text(size = 18),
+    legend.text = element_text(size = 10)
+  )
+plot_best_drug_viridis &
+  theme(
+    axis.text.y = element_text(size = 18),
+    legend.text = element_text(size = 10)
+  )
 dev.off()
 
 
@@ -497,8 +510,20 @@ plot_calibration_tol3 <- overall_benefit_calibration_tolerance3_post_2019 %>%
   labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)", title = "3mmol/mol optimal")
 
 pdf("Outputs/CPRD/05.post_overall_calibration.pdf", width = 7, height = 5)
-plot_calibration_rank1
-plot_calibration_tol3
+plot_calibration_rank1 +
+  theme(
+    plot.title = element_blank(),
+    axis.title = element_text(size = 17),
+    axis.text = element_text(size = 15),
+    plot.margin = margin(16.5, 16.5, 5.5, 5.5, unit = "pt")
+  )
+plot_calibration_tol3 +
+  theme(
+    plot.title = element_blank(),
+    axis.title = element_text(size = 17),
+    axis.text = element_text(size = 15),
+    plot.margin = margin(16.5, 16.5, 5.5, 5.5, unit = "pt")
+  )
 dev.off()
 
 

@@ -371,8 +371,18 @@ plot_tol3_optimal_standard_inje_values <- tolerance3_optimal_standard_inje %>%
 
 
 pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.drug_combinations.pdf", width = 14, height = 6)
-plot_tol3_optimal_standard
-plot_tol3_optimal_standard_inje
+plot_tol3_optimal_standard &
+  theme(
+    plot.title = element_text(size = 18),
+    plot.subtitle = element_text(size = 14),
+    axis.text.x = element_text(size = 10)
+  )
+plot_tol3_optimal_standard_inje &
+  theme(
+    plot.title = element_text(size = 18),
+    plot.subtitle = element_text(size = 14),
+    axis.text.x = element_text(size = 10)
+  )
 dev.off()
 
 
@@ -534,8 +544,16 @@ plot_best_drug_viridis <- patchwork::wrap_plots(
 
 
 pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.optimal_therapy_rank1.pdf", width = 10, height = 4)
-plot_best_drug_github
-plot_best_drug_viridis
+plot_best_drug_github &
+  theme(
+    axis.text.y = element_text(size = 18),
+    legend.text = element_text(size = 10)
+  )
+plot_best_drug_viridis &
+  theme(
+    axis.text.y = element_text(size = 18),
+    legend.text = element_text(size = 10)
+  )
 dev.off()
 
 
@@ -564,8 +582,20 @@ plot_calibration_tol3 <- overall_benefit_calibration_tolerance3 %>%
 		labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)", title = "3mmol/mol optimal")
 
 pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.post_overall_calibration.pdf", width = 7, height = 5)
-plot_calibration_rank1
-plot_calibration_tol3
+plot_calibration_rank1 +
+  theme(
+    plot.title = element_blank(),
+    axis.title = element_text(size = 17),
+    axis.text = element_text(size = 15),
+    plot.margin = margin(16.5, 16.5, 5.5, 5.5, unit = "pt")
+  )
+plot_calibration_tol3 +
+  theme(
+    plot.title = element_blank(),
+    axis.title = element_text(size = 17),
+    axis.text = element_text(size = 15),
+    plot.margin = margin(16.5, 16.5, 5.5, 5.5, unit = "pt")
+  )
 dev.off()
 
 
