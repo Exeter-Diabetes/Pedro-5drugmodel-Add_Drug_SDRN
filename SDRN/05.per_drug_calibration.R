@@ -114,31 +114,17 @@ analysis_standard <- analysis_cohort %>%
 
 analysis_standard_post_2019 <- analysis_cohort %>%
 		filter(!(drug_substance %in% c("Oral semaglutide", "Low-dose semaglutide", "Semaglutide, dose unclear", "High-dose semaglutide"))) %>%
-		separate(pasted_var, into = c("serialno", "dstartdate", "drug_class"), sep = "\\.") %>%
+		separate(pated, into = c("serialno", "dstartdate", "drug_class"), sep = "\\.") %>%
 		mutate(dstartdate = as.Date(dstartdate)) %>%
 		filter(dstartdate >= "2019-01-01") %>%
 		mutate(pated = paste(serialno, dstartdate, drug_class, sep = ".")) %>%
-		select(all_of(c(
-								"pated", "agetx", "sex", "t2dmduration", "ethnicity",
-								"drug_substance", "drug_class",
-								"imd5", "smoke",
-								"prebmi", "prehba1c", "preegfr", "pretotalcholesterol", "prehdl", "prealt",
-								"drugline", "ncurrtx", "hba1cmonth",
-								"posthba1cfinal"
-						)
-				))
+		select(all_of(colnames(analysis_standard)))
 
 analysis_oral <- analysis_cohort %>%
 		filter(drug_substance %in% c("Oral semaglutide"))
 
 analysis_injectable <- analysis_cohort %>%
 		filter(drug_substance %in% c("Low-dose semaglutide", "Semaglutide, dose unclear", "High-dose semaglutide"))
-
-n_train <- floor(0.2 * nrow(analysis_injectable))
-set.seed(123)
-
-analysis_injectable <- analysis_injectable %>%
-		mutate(split = ifelse(row_number() %in% sample(nrow(analysis_injectable), n_train), "training", "testing"))
 
 
 
@@ -171,11 +157,63 @@ analysis_injectable <- analysis_injectable %>%
 		mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide)
 
 
+# Calibration slope ----
+calibration_summary <- analysis_standard %>%
+		rowwise() %>%
+		mutate(pred = get(paste0("pred.", drugclass))) %>%
+		ungroup() %>%
+		group_by(drugclass) %>%
+		do(tidy(lm(posthba1cfinal ~ pred, data = .), conf.int = TRUE)) %>%
+		filter(term %in% c("(Intercept)", "pred")) %>%
+		select(drugclass, term, estimate, conf.low, conf.high) %>%
+		pivot_wider(
+				names_from = term,
+				values_from = c(estimate, conf.low, conf.high),
+				names_glue = "{term}_{.value}"
+		) %>%
+		rbind(
+				analysis_standard %>%
+						rowwise() %>%
+						mutate(pred = get(paste0("pred.", drugclass))) %>%
+						ungroup() %>%
+						do(tidy(lm(posthba1cfinal ~ pred, data = .), conf.int = TRUE)) %>%
+						filter(term %in% c("(Intercept)", "pred")) %>%
+						mutate(drugclass = "Overall") %>%
+						select(drugclass, term, estimate, conf.low, conf.high) %>%
+						pivot_wider(
+								names_from = term,
+								values_from = c(estimate, conf.low, conf.high),
+								names_glue = "{term}_{.value}"
+						)
+		) %>%
+		as.data.frame()
+
+
 # Find optimal drug ----
 
-## Standard drugs ----
+standard_optimal <- analysis_standard %>%
+		cateval::get_best_drugs(
+				rank = 1,
+				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
+				final_var_name = "pred."
+		) %>%
+		select(matches("rank1|drugclass")) %>%
+		mutate(concordant = drugclass == pred.rank1_drug_name)
+
+
+standard_post_2019_optimal <- analysis_standard_post_2019 %>%
+		cateval::get_best_drugs(
+				rank = 1,
+				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
+				final_var_name = "pred."
+		) %>%
+		select(matches("rank1|drugclass")) %>%
+		mutate(concordant = drugclass == pred.rank1_drug_name)
+
+## Rank 1 ----
+
 rank1_optimal_standard <- analysis_standard_post_2019 %>%
-		rbind(analysis_oral, analysis_injectable %>% select(-split)) %>%
+#		rbind(analysis_oral, analysis_injectable) %>%
 		cateval::get_best_drugs(
 				rank = 1,
 				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
@@ -184,7 +222,7 @@ rank1_optimal_standard <- analysis_standard_post_2019 %>%
 		select(matches("rank1|sex"))
 
 rank1_optimal_standard_inje <- analysis_standard_post_2019 %>%
-		rbind(analysis_oral, analysis_injectable %>% select(-split)) %>%
+#		rbind(analysis_oral, analysis_injectable) %>%
 		cateval::get_best_drugs(
 				rank = 1,
 				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD", "Inje")),
@@ -192,8 +230,9 @@ rank1_optimal_standard_inje <- analysis_standard_post_2019 %>%
 		) %>%
 		select(matches("rank1|sex"))
 
+## Tolerance 3 ----
 tolerance3_optimal_standard <- analysis_standard_post_2019 %>%
-		rbind(analysis_oral, analysis_injectable %>% select(-split)) %>%
+#		rbind(analysis_oral, analysis_injectable) %>%
 		cateval::get_best_drugs(
 				tolerance = 3,
 				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
@@ -202,7 +241,7 @@ tolerance3_optimal_standard <- analysis_standard_post_2019 %>%
 		select(matches("within|sex"))
 
 tolerance3_optimal_standard_inje <- analysis_standard_post_2019 %>%
-		rbind(analysis_oral, analysis_injectable %>% select(-split)) %>%
+#		rbind(analysis_oral, analysis_injectable) %>%
 		cateval::get_best_drugs(
 				tolerance =3,
 				column_names = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD", "Inje")),
@@ -230,11 +269,32 @@ overall_benefit_calibration_rank1_summary <- cateval::compute_overall_benefit_pe
 		match.exact = c("sex", "hba1c_group")
 )
 
+overall_benefit_calibration_rank1_one_group <- cateval::compute_overall_benefit(
+		data = analysis_standard %>% mutate(hba1c_group = ntile(prehba1c, 10)),
+		drug_var = "drugclass",
+		outcome_var = "posthba1cfinal",
+		cal_groups = 1,
+		pred_cols = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
+		matching_var = c("t2dmduration", "prebmi", "agetx", "prealt", "preegfr", "pretotalcholesterol", "prehdl", "hba1cmonth", "smoke", "imd5", "ncurrtx", "drugline"),
+		match.exact = c("sex", "hba1c_group")
+)
+
 overall_benefit_calibration_rank1 <- cateval::compute_overall_benefit(
 		data = analysis_standard %>% mutate(hba1c_group = ntile(prehba1c, 10)),
 		drug_var = "drugclass",
 		outcome_var = "posthba1cfinal",
 		cal_groups = 10,
+		pred_cols = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
+		matching_var = c("t2dmduration", "prebmi", "agetx", "prealt", "preegfr", "pretotalcholesterol", "prehdl", "hba1cmonth", "smoke", "imd5", "ncurrtx", "drugline"),
+		match.exact = c("sex", "hba1c_group")
+)
+
+overall_benefit_calibration_tolerance3_one_group <- cateval::compute_overall_benefit(
+		data = analysis_standard %>% mutate(hba1c_group = ntile(prehba1c, 10)),
+		drug_var = "drugclass",
+		outcome_var = "posthba1cfinal",
+		cal_groups = 1,
+		conc_tolerance = 3,
 		pred_cols = paste0("pred.", c("DPP4", "GLP1", "SGLT2", "SU", "TZD")),
 		matching_var = c("t2dmduration", "prebmi", "agetx", "prealt", "preegfr", "pretotalcholesterol", "prehdl", "hba1cmonth", "smoke", "imd5", "ncurrtx", "drugline"),
 		match.exact = c("sex", "hba1c_group")
@@ -269,7 +329,7 @@ drug_names <- c(
 		"SU" = "SU",
 		"DPP4" = "DPP4i",
 		"TZD" = "TZD",
-		"Inje" = "Injectable semaglutide"
+		"Inje" = "Injectable Semaglutide"
 )
 
 
@@ -280,9 +340,15 @@ plot_tol3_optimal_standard <- tolerance3_optimal_standard %>%
 				pred.within_3_of_best_drug_name = str_replace_all(pred.within_3_of_best_drug_name, drug_names)
 		) %>%
 		unlist() %>%
-		cateval::optimal_drug_comparison_plot(groups = groups, plot = FALSE)
+		cateval::optimal_drug_comparison_plot(groups = groups, plot = TRUE)
 
-saveRDS(plot_tol3_optimal_standard, "/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.list_tolerance3_analysis_standard.rds")
+plot_tol3_optimal_standard_values <- tolerance3_optimal_standard %>%
+		select(pred.within_3_of_best_drug_name) %>%
+		mutate(
+				pred.within_3_of_best_drug_name = str_replace_all(pred.within_3_of_best_drug_name, drug_names)
+		) %>%
+		unlist() %>%
+		cateval::optimal_drug_comparison_plot(groups = groups, plot = FALSE)
 
 
 plot_tol3_optimal_standard_inje <- tolerance3_optimal_standard_inje %>%
@@ -291,17 +357,23 @@ plot_tol3_optimal_standard_inje <- tolerance3_optimal_standard_inje %>%
 				pred.within_3_of_best_drug_name = str_replace_all(pred.within_3_of_best_drug_name, drug_names)
 		) %>%
 		unlist() %>%
+		cateval::optimal_drug_comparison_plot(groups = groups, plot = TRUE)
+
+plot_tol3_optimal_standard_inje_values <- tolerance3_optimal_standard_inje %>%
+		select(pred.within_3_of_best_drug_name) %>%
+		mutate(
+				pred.within_3_of_best_drug_name = str_replace_all(pred.within_3_of_best_drug_name, drug_names)
+		) %>%
+		unlist() %>%
 		cateval::optimal_drug_comparison_plot(groups = groups, plot = FALSE)
 
-saveRDS(plot_tol3_optimal_standard_inje, "/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.list_tolerance3_optimal_standard_inje.rds")
 
 
 
-
-# pdf("Outputs/SDRN/05.drug_combinations.pdf", width = 14, height = 6)
-# plot_tol3_optimal_standard
-# plot_tol3_optimal_standard_inje
-# dev.off()
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.drug_combinations.pdf", width = 14, height = 6)
+plot_tol3_optimal_standard
+plot_tol3_optimal_standard_inje
+dev.off()
 
 
 ### Rank 1 optimal therapy ----
@@ -461,7 +533,7 @@ plot_best_drug_viridis <- patchwork::wrap_plots(
 		)
 
 
-pdf("Outputs/SDRN/05.optimal_therapy_rank1.pdf", width = 10, height = 4)
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.optimal_therapy_rank1.pdf", width = 10, height = 4)
 plot_best_drug_github
 plot_best_drug_viridis
 dev.off()
@@ -491,7 +563,7 @@ plot_calibration_tol3 <- overall_benefit_calibration_tolerance3 %>%
 		theme_minimal() +
 		labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)", title = "3mmol/mol optimal")
 
-pdf("Outputs/SDRN/05.post_overall_calibration.pdf", width = 7, height = 5)
+pdf("/home/pcardoso/workspace/Pedro-5drugmodel-Add_Drug_SDRN/Outputs/SDRN/05.post_overall_calibration.pdf", width = 7, height = 5)
 plot_calibration_rank1
 plot_calibration_tol3
 dev.off()
