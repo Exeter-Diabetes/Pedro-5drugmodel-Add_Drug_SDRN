@@ -150,6 +150,8 @@ closed_loop_test_injectable_semaglutide <- closedtest_continuous_function(
   p_value = 0.05
 )
 
+closed_loop_test_injectable_semaglutide_adjustment <- 7.3
+
 ## Adjustment used: https://doi.org/10.1016/j.diabres.2021.108904
 ## Difference between Fig5 Dulaglutide vs Semaglutide 0.48% (0.17,0.8)
 injectable_semaglutide_hba1c_percent <- 0.48
@@ -159,26 +161,13 @@ injectable_semaglutide_hba1c_mmol <- injectable_semaglutide_hba1c_percent * 10.9
 
 ### Make predictions ----
 analysis_standard <- analysis_standard %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_standard %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 analysis_oral <- analysis_oral %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_oral %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 analysis_injectable <- analysis_injectable %>%
-  mutate(
-    pred.Inje = predict_with_modelchoice_function(closed_loop_test_injectable_semaglutide, analysis_injectable %>% mutate(
-      drugclass = "GLP1"
-    ))
-  )
-
+  mutate(pred.Inje = pred.GLP1 - closed_loop_test_injectable_semaglutide_adjustment)
 
 
 
@@ -234,7 +223,8 @@ drug_names <- c(
 ## Standard ----
 plot_standard_drugpairs <- unified_analysis_standard_adj %>%
   mutate(
-    drug1 = str_replace_all(drug1, drug_names)
+    drug1 = str_replace_all(drug1, drug_names),
+    drug2 = str_replace_all(drug2, drug_names)
   ) %>%
   mutate(drugcombo = paste(drug1, drug2)) %>%
   group_by(drugcombo, n_groups) %>%
@@ -261,14 +251,20 @@ plot_standard_drugpairs <- unified_analysis_standard_adj %>%
 
 
 pdf("Outputs/CPRD/06.drug_pair_standard.pdf", width = 12, height = 5)
-plot_standard_drugpairs
+plot_standard_drugpairs +
+  theme(
+    axis.title = element_text(size = 15),
+    axis.text = element_text(size = 13),
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(size = 13)
+  )
 dev.off()
 
 ## Oral semaglutide ----
 
 drug_names <- c(
   "SGLT2" = "SGLT2i",
-  "GLP1"= "Oral semaglutide",
+  "GLP1"= "Oral Semaglutide",
   "SU" = "SU",
   "DPP4" = "DPP4i",
   "TZD" = "TZD"
@@ -277,7 +273,8 @@ drug_names <- c(
 plot_oral_drugpairs <- unified_analysis_standard_oral_adj %>%
   filter(drug1 == "GLP1") %>%
   mutate(
-    drug1 = str_replace_all(drug1, drug_names)
+    drug1 = str_replace_all(drug1, drug_names),
+    drug2 = str_replace_all(drug2, drug_names)
   ) %>%
   mutate(drugcombo = paste(drug1, drug2)) %>%
   group_by(drugcombo, n_groups) %>%
@@ -303,7 +300,13 @@ plot_oral_drugpairs <- unified_analysis_standard_oral_adj %>%
   labs(x = "Predicted HbA1c benefit (mmol/mol)", y = "Observed HbA1c benefit* (mmol/mol)")
 
 pdf("Outputs/CPRD/06.drug_pair_oral_semaglutide.pdf", width = 6, height = 6)
-plot_oral_drugpairs
+plot_oral_drugpairs +
+  theme(
+    axis.title = element_text(size = 15),
+    axis.text = element_text(size = 13),
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(size = 13)
+  )
 dev.off()
 
 
@@ -311,7 +314,7 @@ dev.off()
 
 drug_names <- c(
   "SGLT2" = "SGLT2i",
-  "GLP1"= "Injectable semaglutide",
+  "GLP1"= "Injectable Semaglutide",
   "SU" = "SU",
   "DPP4" = "DPP4i",
   "TZD" = "TZD"
@@ -320,7 +323,8 @@ drug_names <- c(
 plot_inje_drugpairs <- unified_analysis_standard_inje_adj %>%
   filter(drug1 == "GLP1") %>%
   mutate(
-    drug1 = str_replace_all(drug1, drug_names)
+    drug1 = str_replace_all(drug1, drug_names),
+    drug2 = str_replace_all(drug2, drug_names)
   ) %>%
   mutate(drugcombo = paste(drug1, drug2)) %>%
   group_by(drugcombo, n_groups) %>%
@@ -347,7 +351,13 @@ plot_inje_drugpairs <- unified_analysis_standard_inje_adj %>%
 
 
 pdf("Outputs/CPRD/06.drug_pair_injectable_semaglutide.pdf", width = 6, height = 6)
-plot_inje_drugpairs
+plot_inje_drugpairs +
+  theme(
+    axis.title = element_text(size = 15),
+    axis.text = element_text(size = 13),
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(size = 12)
+  )
 dev.off()
 
 
